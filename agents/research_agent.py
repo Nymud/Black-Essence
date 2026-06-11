@@ -1,8 +1,7 @@
+import json
 import logging
 import re
-import urllib.parse
 
-import httpx
 from openai import OpenAI
 
 from utils.config import Config
@@ -13,44 +12,27 @@ logger = logging.getLogger(__name__)
 
 class ResearchAgent:
     def __init__(self):
-        self.brave_api_key = Config.BRAVE_API_KEY
         self.openrouter_key = Config.OPENROUTER_API_KEY
         self.openrouter_model = Config.OPENROUTER_MODEL
 
-    def _brave_search(self, query: str, count: int = 10) -> list[dict]:
-        if not self.brave_api_key:
-            raise RuntimeError("Brave API key not configured")
-
-        encoded = urllib.parse.quote(query)
-        url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count={count}"
-
-        headers = {
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": self.brave_api_key,
-        }
-
-        resp = httpx.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-
+    def _duckduckgo_search(self, query: str) -> list[dict]:
+        from ddgs import DDGS
         results = []
-        for item in data.get("web", {}).get("results", []):
-            url_field = item.get("url", "")
-            domain_priority = 0
-            if re.search(r"\.edu\b", url_field):
-                domain_priority = 2
-            elif re.search(r"\.org\b", url_field):
-                domain_priority = 1
-
+        ddgs = DDGS()
+        for r in ddgs.text(query, max_results=10):
+            url_field = r.get("href", "")
+            domain_priority = 2 if re.search(r"\.edu", url_field) else (
+                1 if re.search(r"\.org", url_field) else 0
+            )
             results.append({
-                "title": item.get("title", ""),
+                "title": r.get("title", ""),
                 "url": url_field,
-                "description": item.get("description", ""),
+                "description": r.get("body", ""),
                 "domain_priority": domain_priority,
             })
-
         results.sort(key=lambda x: x["domain_priority"], reverse=True)
+        if not results:
+            raise RuntimeError(f"No DuckDuckGo results for '{query}'")
         return results
 
     def _gemini_fallback(self, query: str) -> list[dict]:
@@ -81,7 +63,6 @@ class ResearchAgent:
             content = re.sub(r"^```(?:json)?\s*", "", content)
             content = re.sub(r"\s*```$", "", content)
 
-        import json
         results = json.loads(content)
         for r in results:
             url = r.get("url", "")
@@ -90,6 +71,6 @@ class ResearchAgent:
 
     def research(self, topic: str) -> list[dict]:
         chain = FallbackChain("ResearchAgent")
-        chain.add_handler(self._brave_search, "BraveSearch")
+        chain.add_handler(self._duckduckgo_search, "DuckDuckGo")
         chain.add_handler(self._gemini_fallback, "GeminiFallback")
         return chain.execute(topic)
