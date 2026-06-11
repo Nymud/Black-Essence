@@ -1,10 +1,11 @@
 import logging
 import os
-import tempfile
 import subprocess
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip, ColorClip
+import tempfile
+import shutil
+import re
+
 import whisper
-import numpy as np
 
 from utils.config import Config
 
@@ -26,132 +27,167 @@ class VideoAssemblyAgent:
         result = model.transcribe(audio_path)
         return result.get("segments", [])
 
-    def _create_subtitle_clips(self, segments, video_width, video_height):
-        clips = []
-        font_size = max(24, int(video_height * 0.04))
-        margin_bottom = int(video_height * 0.08)
+    @staticmethod
+    def _srt_time(seconds: float) -> str:
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = seconds % 60
+        return f"{h:02d}:{m:02d}:{s:06.3f}"
 
-        for seg in segments:
-            txt = seg.get("text", "").strip()
-            if not txt:
-                continue
-            start = seg.get("start", 0)
-            end = seg.get("end", 0)
-            duration = end - start
+    @staticmethod
+    def _write_srt(segments: list[dict], path: str):
+        with open(path, "w", encoding="utf-8") as f:
+            for i, seg in enumerate(segments, 1):
+                text = seg.get("text", "").strip()
+                if not text:
+                    continue
+                start = seg.get("start", 0)
+                end = seg.get("end", 0)
+                if end - start < 0.3:
+                    continue
+                f.write(f"{i}\n")
+                f.write(f"{VideoAssemblyAgent._srt_time(start)} --> {VideoAssemblyAgent._srt_time(end)}\n")
+                f.write(f"{text}\n\n")
 
-            font_path = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arial.ttf")
-            try:
-                txt_clip = TextClip(
-                    text=txt,
-                    font_size=font_size,
-                    color="white",
-                    font=font_path if os.path.exists(font_path) else "Arial",
-                    stroke_color="black",
-                    stroke_width=2,
-                    method="caption",
-                    size=(int(video_width * 0.9), None),
-                )
-                txt_clip = txt_clip.with_start(start).with_duration(duration)
-                txt_clip = txt_clip.with_position(("center", video_height - margin_bottom - txt_clip.h))
-                clips.append(txt_clip)
-            except Exception as e:
-                logger.warning("Failed to create subtitle clip: %s", e)
+    @staticmethod
+    def _get_duration(path: str) -> float:
+        cmd = ["ffmpeg", "-i", path]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        m = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", r.stderr)
+        if m:
+            h, mn, s = m.groups()
+            return int(h) * 3600 + int(mn) * 60 + float(s)
+        raise RuntimeError(f"Could not parse duration from {path}")
 
-        return clips
+    @staticmethod
+    def _is_image(path: str) -> bool:
+        return path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp"))
+
+    def _create_image_segment(self, image_path: str, duration: float, w: int, h: int, fps: int, out_path: str):
+        n_frames = max(1, int(duration * fps))
+        inc = 0.06 / n_frames
+        scale_w = int(w * 1.06)
+        scale_h = int(h * 1.06)
+        vf = (
+            f"scale={scale_w}:{scale_h},"
+            f"zoompan=z=if(eq(on\\,1)\\,1\\,zoom+{inc}):d={n_frames}:s={w}x{h}"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-i", image_path,
+            "-vf", vf,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-pix_fmt", "yuv420p",
+            "-an",
+            "-t", str(duration),
+            out_path
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300)
+
+    def _create_video_segment(self, video_path: str, duration: float, w: int, h: int, fps: int, out_path: str):
+        vf = f"scale={w}:{h}:force_original_aspect_ratio=1,crop={w}:{h}"
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-vf", vf,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-pix_fmt", "yuv420p",
+            "-an",
+            "-t", str(duration),
+            "-r", str(fps),
+            out_path
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300)
 
     def assemble(self, broll_clips: list[str], audio_path: str, output_path: str, vertical: bool = False):
         logger.info("Assembling video: %d clips, audio: %s", len(broll_clips), audio_path)
+        target_w, target_h = (720, 1280) if vertical else (1280, 720)
+        fps = 12
 
-        target_w, target_h = (1080, 1920) if vertical else (1920, 1080)
+        audio_duration = self._get_duration(audio_path)
+        clip_duration = audio_duration / max(len(broll_clips), 1)
+        print(f"\n=== VIDEO: {audio_duration:.0f}s @ {target_w}x{target_h}, {fps}fps ===")
+        print(f"  {len(broll_clips)} segments, {clip_duration:.1f}s each")
 
-        video_clips = []
-        current_time = 0
+        tmp = tempfile.mkdtemp(prefix="vid_")
+        try:
+            segments = self._transcribe_audio(audio_path)
+            srt_path = os.path.join(tmp, "subs.srt")
+            self._write_srt(segments, srt_path)
 
-        audio = AudioFileClip(audio_path)
-        total_duration = audio.duration
-
-        clip_duration = total_duration / max(len(broll_clips), 1)
-
-        for i, clip_path in enumerate(broll_clips):
-            try:
-                clip = VideoFileClip(clip_path)
-                if vertical:
-                    clip = clip.resized(height=target_h)
-                    clip = clip.cropped(x_center=clip.w / 2, width=target_w)
+            seg_paths = []
+            for i, clip_path in enumerate(broll_clips):
+                out_seg = os.path.join(tmp, f"s{i:04d}.mp4")
+                if self._is_image(clip_path):
+                    self._create_image_segment(clip_path, clip_duration, target_w, target_h, fps, out_seg)
                 else:
-                    clip = clip.resized(width=target_w)
-                    clip = clip.cropped(y_center=clip.h / 2, height=target_h)
+                    self._create_video_segment(clip_path, clip_duration, target_w, target_h, fps, out_seg)
+                seg_paths.append(out_seg)
 
-                clip = clip.with_duration(min(clip_duration, clip.duration))
-                clip = clip.with_start(current_time)
-                video_clips.append(clip)
-                current_time += clip.duration
-            except Exception as e:
-                logger.warning("Failed to process clip %s: %s", clip_path, e)
-                blank = ColorClip(size=(target_w, target_h), color=(0, 0, 0))
-                blank = blank.with_duration(clip_duration).with_start(current_time)
-                video_clips.append(blank)
-                current_time += clip_duration
+            concat_path = os.path.join(tmp, "concat.txt")
+            with open(concat_path, "w") as f:
+                for sp in seg_paths:
+                    f.write(f"file '{os.path.basename(sp)}'\n")
 
-        final = CompositeVideoClip(video_clips, size=(target_w, target_h))
-        final = final.with_audio(audio)
-        final = final.with_duration(total_duration)
+            subtitles_filter = (
+                "subtitles=subs.srt"
+                ":force_style='Alignment=2,FontName=Arial,FontSize=16,"
+                "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2'"
+            )
 
-        segments = self._transcribe_audio(audio_path)
-        subtitle_clips = self._create_subtitle_clips(segments, target_w, target_h)
-        if subtitle_clips:
-            final = CompositeVideoClip([final] + subtitle_clips, size=(target_w, target_h))
+            cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0", "-i", concat_path,
+                "-i", audio_path,
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "28",
+                "-c:a", "aac",
+                "-pix_fmt", "yuv420p",
+                "-r", str(fps),
+                "-vf", subtitles_filter,
+                "-shortest",
+                "-movflags", "+faststart",
+                output_path
+            ]
 
-        final.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac",
-            fps=24,
-            preset="ultrafast",
-            bitrate="1000k",
-            threads=4,
-            logger=None,
-        )
+            subprocess.run(cmd, cwd=tmp, check=True, capture_output=True, text=True, timeout=1800)
+            size_mb = os.path.getsize(output_path) / (1024 * 1024)
+            print(f"  Output: {output_path} [{size_mb:.1f} MB]")
+            logger.info("Video assembled to %s", output_path)
+            return output_path
 
-        for c in video_clips:
-            try:
-                c.close()
-            except Exception:
-                pass
-        audio.close()
-        final.close()
-
-        logger.info("Video assembled to %s", output_path)
-        return output_path
+        except subprocess.TimeoutExpired:
+            logger.error("ffmpeg timed out for %s", output_path)
+            raise RuntimeError(f"ffmpeg timed out for {output_path}")
+        except subprocess.CalledProcessError as e:
+            logger.error("ffmpeg failed: %s", e.stderr[:500])
+            raise RuntimeError(f"ffmpeg failed: {e.stderr[:200]}")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def convert_to_vertical(self, input_path: str) -> str:
         out = tempfile.NamedTemporaryFile(suffix="_vertical.mp4", delete=False)
         out_path = out.name
         out.close()
 
-        clip = VideoFileClip(input_path)
-        w, h = clip.size
-        target_w, target_h = 1080, 1920
-
-        if w / h > target_w / target_h:
-            new_w = int(h * target_w / target_h)
-            clip_resized = clip.resized(width=new_w)
-            clip_cropped = clip_resized.cropped(x_center=clip_resized.w / 2, width=target_w)
-        else:
-            new_h = int(w * target_h / target_w)
-            clip_resized = clip.resized(height=new_h)
-            clip_cropped = clip_resized.cropped(y_center=clip_resized.h / 2, height=target_h)
-
-        clip_cropped = clip_cropped.resized((target_w, target_h))
-        clip_cropped.write_videofile(
-            out_path,
-            codec="libx264",
-            audio_codec="aac",
-            fps=24,
-            preset="fast",
-            logger=None,
-        )
-        clip.close()
-        clip_cropped.close()
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_path,
+            "-vf", "scale=720:1280:force_original_aspect_ratio=1,crop=720:1280",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-c:a", "aac",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            out_path
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
         logger.info("Converted to vertical: %s", out_path)
         return out_path

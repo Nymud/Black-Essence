@@ -53,17 +53,17 @@ class ProductionAgent:
 
             logger.info("Script written (%d chars)", len(script))
 
-            broll_markers = self.scriptwriter.parse_broll_markers(script)
-            if not broll_markers:
-                logger.warning("No B-ROLL markers found, using topic-based markers")
-                broll_markers = [topic]
+            scene_markers = self.scriptwriter.parse_scene_markers(script)
+            if not scene_markers:
+                logger.warning("No SCENE markers found, using topic-based markers")
+                scene_markers = [topic]
 
             logger.info("Generating voiceover...")
             audio_path = self.voiceover.generate_voiceover(script)
 
-            logger.info("Fetching %d b-roll clips...", len(broll_markers))
+            logger.info("Fetching %d scene images...", len(scene_markers))
             broll_clips = []
-            for marker in broll_markers:
+            for marker in scene_markers:
                 try:
                     clip = self.broll.get_clip(marker)
                     broll_clips.append(clip)
@@ -84,7 +84,7 @@ class ProductionAgent:
             vertical_name = f"{safe_topic}_{ts}_vertical.mp4"
             vertical_path = os.path.join(self.output_dir, vertical_name)
             logger.info("Converting to vertical format...")
-            self.video_assembly.convert_to_vertical(video_path)
+            vertical_path = self.video_assembly.convert_to_vertical(video_path)
 
             logger.info("Generating thumbnail...")
             thumb_path = self.thumbnail.generate_thumbnail(topic)

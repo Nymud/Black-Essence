@@ -17,7 +17,7 @@ class Config:
     ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
 
     HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
-    HF_STABLE_DIFFUSION_MODEL = os.getenv("HF_STABLE_DIFFUSION_MODEL", "runwayml/stable-diffusion-v1-5")
+    HF_STABLE_DIFFUSION_MODEL = os.getenv("HF_STABLE_DIFFUSION_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
 
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")

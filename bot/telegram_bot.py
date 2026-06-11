@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 from datetime import datetime
 
 from telegram import Bot, InputMediaVideo, InputMediaPhoto
@@ -32,7 +33,7 @@ class TelegramApprovalBot:
         self.admin_chat_id = Config.TELEGRAM_ADMIN_CHAT_ID
         self.bot = None
         self._pending_approvals = {}
-        self._current_approval_event = None
+        self._approval_event = threading.Event()
 
     async def start(self):
         if not self.token:
@@ -43,7 +44,6 @@ class TelegramApprovalBot:
 
     def _ensure_bot(self):
         if not self.bot and self.token:
-            import asyncio
             self.bot = Bot(token=self.token)
         return self.bot is not None
 
@@ -54,14 +54,14 @@ class TelegramApprovalBot:
         try:
             await self.bot.send_message(
                 chat_id=self.admin_chat_id,
-                text=f"🚨 {message}",
+                text=f"{message}",
                 parse_mode="HTML",
             )
             logger.info("Alert sent to admin")
         except TelegramError as e:
             logger.error("Failed to send alert: %s", e)
 
-    async def request_approval(self, video_path: str, thumbnail_path: str, topic: str) -> ApprovalRequest:
+    async def request_approval(self, video_path: str, thumbnail_path: str, topic: str, timeout: int = 86400) -> ApprovalRequest:
         if not self._ensure_bot():
             logger.warning("Bot not configured, auto-approving")
             req = ApprovalRequest(video_path, thumbnail_path, topic)
@@ -71,15 +71,19 @@ class TelegramApprovalBot:
         req = ApprovalRequest(video_path, thumbnail_path, topic)
         req_id = str(id(req))
         self._pending_approvals[req_id] = req
+        self._approval_event.clear()
 
         try:
             with open(video_path, "rb") as vf, open(thumbnail_path, "rb") as tf:
                 await self.bot.send_media_group(
                     chat_id=self.admin_chat_id,
                     media=[
-                        InputMediaVideo(vf, caption=f"📹 Preview: {topic}"),
-                        InputMediaPhoto(tf, caption="🖼 Thumbnail"),
+                        InputMediaVideo(vf, caption=f"Preview: {topic}"),
+                        InputMediaPhoto(tf, caption="Thumbnail"),
                     ],
+                    read_timeout=300,
+                    write_timeout=300,
+                    connect_timeout=120,
                 )
 
             await self.bot.send_message(
@@ -100,13 +104,7 @@ class TelegramApprovalBot:
             req.status = ApprovalStatus.APPROVED
             return req
 
-        self._current_approval_event = asyncio.Event()
-        try:
-            await asyncio.wait_for(self._current_approval_event.wait(), timeout=86400)
-        except asyncio.TimeoutError:
-            logger.warning("Approval timed out, auto-rejecting")
-            req.status = ApprovalStatus.REJECTED
-            req.feedback = "Auto-rejected after 24h timeout"
+        self._approval_event.wait(timeout=timeout)  # 24h default in production
 
         return req
 
@@ -127,11 +125,10 @@ class TelegramApprovalBot:
             req = self._pending_approvals.get(req_id)
             if req:
                 req.status = ApprovalStatus.APPROVED
-                if self._current_approval_event:
-                    self._current_approval_event.set()
-                await self.bot.send_message(chat_id=chat_id, text=f"✅ Approved: {req.topic}")
+                self._approval_event.set()
+                await self.bot.send_message(chat_id=chat_id, text=f"Approved: {req.topic}")
             else:
-                await self.bot.send_message(chat_id=chat_id, text="❌ Invalid request ID")
+                await self.bot.send_message(chat_id=chat_id, text="Invalid request ID")
 
         elif text.startswith("/reject"):
             parts = text.split(maxsplit=2)
@@ -141,11 +138,10 @@ class TelegramApprovalBot:
             if req:
                 req.status = ApprovalStatus.REJECTED
                 req.feedback = reason
-                if self._current_approval_event:
-                    self._current_approval_event.set()
-                await self.bot.send_message(chat_id=chat_id, text=f"❌ Rejected: {req.topic}\nReason: {reason}")
+                self._approval_event.set()
+                await self.bot.send_message(chat_id=chat_id, text=f"Rejected: {req.topic}\nReason: {reason}")
             else:
-                await self.bot.send_message(chat_id=chat_id, text="❌ Invalid request ID")
+                await self.bot.send_message(chat_id=chat_id, text="Invalid request ID")
 
         elif text.startswith("/feedback"):
             parts = text.split(maxsplit=2)
@@ -154,12 +150,11 @@ class TelegramApprovalBot:
             req = self._pending_approvals.get(req_id)
             if req:
                 req.feedback = feedback
-                await self.bot.send_message(chat_id=chat_id, text=f"📝 Feedback recorded for {req.topic}")
+                await self.bot.send_message(chat_id=chat_id, text=f"Feedback recorded for {req.topic}")
 
     def run_polling(self):
         if not self._ensure_bot():
             return
-        import asyncio
         from telegram.ext import Application, MessageHandler, filters
 
         app = Application.builder().token(self.token).build()

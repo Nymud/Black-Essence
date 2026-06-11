@@ -29,16 +29,20 @@ class ScriptwritingAgent:
 
         base = (
             f"You are a scriptwriter for a Black History educational YouTube Shorts channel. "
-            f"Write a 60-90 second script about: '{topic}'.\n\n"
+            f"Write a 60-90 second NARRATIVE script about: '{topic}'.\n\n"
             f"Research Sources:\n{sources_text}\n\n"
             f"The script must:\n"
-            f"1. Be engaging and educational for a general audience\n"
+            f"1. Tell a compelling STORY with a narrative arc (beginning, middle, end)\n"
             f"2. Use a hook in the first 5 seconds to grab attention\n"
-            f"3. Include [B-ROLL: description of visual] markers at appropriate points\n"
+            f"3. Include [SCENE: description of visual] markers at key story moments for illustration\n"
             f"4. Be timed to read in 60-90 seconds at a moderate pace (~150 words)\n"
             f"5. End with a call to action\n"
-            f"6. Use natural, conversational tone\n\n"
-            f"Return ONLY the script text with B-ROLL markers. No commentary."
+            f"6. Use natural, conversational storytelling tone - NARRATE the story, do NOT describe what the viewer sees\n"
+            f"7. NEVER say 'you see' or 'as you can see' - just tell the story\n\n"
+            f"Example [SCENE] markers:\n"
+            f"- [SCENE: Harriet Tubman as a young girl working in the fields]\n"
+            f"- [SCENE: The underground railroad secret path through the woods]\n\n"
+            f"Return ONLY the script text with SCENE markers. No commentary."
         )
 
         rules = load_rules(self.rules_path)
@@ -59,8 +63,8 @@ class ScriptwritingAgent:
         script = re.sub(r"\s*```$", "", script)
         return script
 
-    def parse_broll_markers(self, script: str) -> list[str]:
-        return re.findall(r"\[B-ROLL:\s*(.*?)\]", script, re.IGNORECASE)
+    def parse_scene_markers(self, script: str) -> list[str]:
+        return re.findall(r"\[SCENE:\s*(.*?)\]", script, re.IGNORECASE)
 
     def estimate_duration(self, script: str) -> float:
         words = len(script.split())
