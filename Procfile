@@ -1,1 +1,1 @@
-worker: python -m youtube_automation.orchestrator
+worker: python __main__.py

@@ -1,8 +1,7 @@
 import logging
 import os
 import tempfile
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip, ColorClip
-from moviepy.video.tools.subtitles import SubtitlesClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip, ColorClip
 import whisper
 import numpy as np
 
@@ -39,19 +38,22 @@ class VideoAssemblyAgent:
             end = seg.get("end", 0)
             duration = end - start
 
-            txt_clip = TextClip(
-                txt,
-                fontsize=font_size,
-                color="white",
-                font="Arial",
-                stroke_color="black",
-                stroke_width=2,
-                method="caption",
-                size=(int(video_width * 0.9), None),
-            )
-            txt_clip = txt_clip.set_start(start).set_duration(duration)
-            txt_clip = txt_clip.set_position(("center", video_height - margin_bottom - txt_clip.h))
-            clips.append(txt_clip)
+            try:
+                txt_clip = TextClip(
+                    text=txt,
+                    font_size=font_size,
+                    color="white",
+                    font="Arial",
+                    stroke_color="black",
+                    stroke_width=2,
+                    method="caption",
+                    size=(int(video_width * 0.9), None),
+                )
+                txt_clip = txt_clip.with_start(start).with_duration(duration)
+                txt_clip = txt_clip.with_position(("center", video_height - margin_bottom - txt_clip.h))
+                clips.append(txt_clip)
+            except Exception as e:
+                logger.warning("Failed to create subtitle clip: %s", e)
 
         return clips
 
@@ -72,26 +74,26 @@ class VideoAssemblyAgent:
             try:
                 clip = VideoFileClip(clip_path)
                 if vertical:
-                    clip = clip.resize(height=target_h)
-                    clip = clip.crop(x_center=clip.w / 2, width=target_w)
+                    clip = clip.resized(height=target_h)
+                    clip = clip.cropped(x_center=clip.w / 2, width=target_w)
                 else:
-                    clip = clip.resize(width=target_w)
-                    clip = clip.crop(y_center=clip.h / 2, height=target_h)
+                    clip = clip.resized(width=target_w)
+                    clip = clip.cropped(y_center=clip.h / 2, height=target_h)
 
-                clip = clip.set_duration(min(clip_duration, clip.duration))
-                clip = clip.set_start(current_time)
+                clip = clip.with_duration(min(clip_duration, clip.duration))
+                clip = clip.with_start(current_time)
                 video_clips.append(clip)
                 current_time += clip.duration
             except Exception as e:
                 logger.warning("Failed to process clip %s: %s", clip_path, e)
                 blank = ColorClip(size=(target_w, target_h), color=(0, 0, 0))
-                blank = blank.set_duration(clip_duration).set_start(current_time)
+                blank = blank.with_duration(clip_duration).with_start(current_time)
                 video_clips.append(blank)
                 current_time += clip_duration
 
         final = CompositeVideoClip(video_clips, size=(target_w, target_h))
-        final = final.set_audio(audio)
-        final = final.set_duration(total_duration)
+        final = final.with_audio(audio)
+        final = final.with_duration(total_duration)
 
         segments = self._transcribe_audio(audio_path)
         subtitle_clips = self._create_subtitle_clips(segments, target_w, target_h)
@@ -106,6 +108,7 @@ class VideoAssemblyAgent:
             preset="fast",
             bitrate="3000k",
             threads=2,
+            logger=None,
         )
 
         for c in video_clips:
@@ -130,20 +133,21 @@ class VideoAssemblyAgent:
 
         if w / h > target_w / target_h:
             new_w = int(h * target_w / target_h)
-            clip_resized = clip.resize(width=new_w)
-            clip_cropped = clip_resized.crop(x_center=clip_resized.w / 2, width=target_w)
+            clip_resized = clip.resized(width=new_w)
+            clip_cropped = clip_resized.cropped(x_center=clip_resized.w / 2, width=target_w)
         else:
             new_h = int(w * target_h / target_w)
-            clip_resized = clip.resize(height=new_h)
-            clip_cropped = clip_resized.crop(y_center=clip_resized.h / 2, height=target_h)
+            clip_resized = clip.resized(height=new_h)
+            clip_cropped = clip_resized.cropped(y_center=clip_resized.h / 2, height=target_h)
 
-        clip_cropped = clip_cropped.resize((target_w, target_h))
+        clip_cropped = clip_cropped.resized((target_w, target_h))
         clip_cropped.write_videofile(
             out_path,
             codec="libx264",
             audio_codec="aac",
             fps=24,
             preset="fast",
+            logger=None,
         )
         clip.close()
         clip_cropped.close()
