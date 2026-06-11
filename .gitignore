@@ -5,3 +5,5 @@ output/
 *.mp4
 *.mp3
 *.png
+client_secret.json
+youtube_token.pickle

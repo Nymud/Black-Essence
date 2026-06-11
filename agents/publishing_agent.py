@@ -1,3 +1,4 @@
+import os
 import logging
 import httpx
 
@@ -20,6 +21,33 @@ class PublishingAgent:
         self.tiktok_token = Config.TIKTOK_ACCESS_TOKEN
         self.instagram_token = Config.INSTAGRAM_ACCESS_TOKEN
         self.youtube_key = Config.YOUTUBE_API_KEY
+        self.youtube_creds = self._load_youtube_creds()
+
+    def _load_youtube_creds(self):
+        raw = Config.YOUTUBE_TOKEN
+        if not raw:
+            return None
+        if raw.startswith("pickle://"):
+            import pickle, json
+            path = raw[len("pickle://"):]
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    token = pickle.load(f)
+                cs_path = os.path.join(os.path.dirname(path), "client_secret.json")
+                client_cfg = {"client_id": "", "client_secret": ""}
+                if os.path.exists(cs_path):
+                    with open(cs_path) as f:
+                        client_cfg = json.load(f).get("installed", client_cfg)
+                from google.oauth2.credentials import Credentials
+                return Credentials(
+                    token=token.get("access_token") or token.get("token", ""),
+                    refresh_token=token.get("refresh_token"),
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=client_cfg["client_id"],
+                    client_secret=client_cfg["client_secret"],
+                    scopes=["https://www.googleapis.com/auth/youtube.upload"],
+                )
+        return None
 
     def publish_youtube_shorts(self, video_path: str, title: str, description: str, thumbnail_path: str = None) -> str:
         try:
@@ -29,13 +57,13 @@ class PublishingAgent:
             return None
 
     def _youtube_upload(self, video_path: str, title: str, description: str, thumbnail_path: str = None) -> str:
-        if not self.youtube_key:
-            logger.warning("YouTube API key not configured, skipping upload")
+        if not self.youtube_creds:
+            logger.warning("YouTube OAuth token not configured, skipping upload")
             return None
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
 
-        youtube = build("youtube", "v3", developerKey=self.youtube_key)
+        youtube = build("youtube", "v3", credentials=self.youtube_creds)
         body = {
             "snippet": {
                 "title": title[:100],
@@ -104,27 +132,26 @@ class PublishingAgent:
             logger.error("Instagram publishing failed: %s", e)
             return None
 
-    def _instagram_upload(self, video_path: str, caption: str) -> str:
-        graph_url = f"https://graph.instagram.com/v12.0/me/media"
-        with open(video_path, "rb") as f:
-            files = {"video": f}
-            data = {
-                "caption": caption[:2200],
+    def _refresh_instagram_token(self):
+        if not Config.INSTAGRAM_APP_SECRET:
+            return self.instagram_token
+        try:
+            r = httpx.get("https://graph.instagram.com/refresh_access_token", params={
+                "grant_type": "ig_refresh_token",
                 "access_token": self.instagram_token,
-                "media_type": "REELS",
-            }
-            resp = httpx.post(graph_url, data=data, files=files, timeout=300)
-        resp.raise_for_status()
-        media_id = resp.json().get("id")
-        publish_url = f"https://graph.instagram.com/v12.0/me/media_publish"
-        pub_resp = httpx.post(publish_url, data={
-            "creation_id": media_id,
-            "access_token": self.instagram_token,
-        }, timeout=60)
-        pub_resp.raise_for_status()
-        ig_url = f"https://instagram.com/p/{media_id}"
-        logger.info("Uploaded to Instagram: %s", ig_url)
-        return ig_url
+            })
+            if r.ok:
+                data = r.json()
+                self.instagram_token = data["access_token"]
+                logger.info("Instagram token refreshed")
+        except Exception as e:
+            logger.warning("Failed to refresh Instagram token: %s", e)
+        return self.instagram_token
+
+    def _instagram_upload(self, video_path: str, caption: str) -> str:
+        self._refresh_instagram_token()
+        logger.warning("Instagram Reels publishing requires Meta App Review for 'instagram_business_content_publish' permission. Skipping upload.")
+        return None
 
     def publish_all(self, video_path: str, vertical_path: str, title: str, description: str, thumbnail_path: str = None) -> PublishingResult:
         result = PublishingResult()

@@ -23,13 +23,16 @@ class Config:
     TELEGRAM_ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
 
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
-    YOUTUBE_CLIENT_SECRETS = os.getenv("YOUTUBE_CLIENT_SECRETS", "client_secrets.json")
+    YOUTUBE_TOKEN = os.getenv("YOUTUBE_TOKEN", "")
 
     ANALYTIX_CLIENT_ID = os.getenv("ANALYTIX_CLIENT_ID", "")
     ANALYTIX_CLIENT_SECRET = os.getenv("ANALYTIX_CLIENT_SECRET", "")
 
     TIKTOK_ACCESS_TOKEN = os.getenv("TIKTOK_ACCESS_TOKEN", "")
     INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+    INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
+    INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
+    INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID", "")
 
     OUTPUT_DIR = os.getenv("OUTPUT_DIR", "output")
     SCHEDULE_CSV = os.getenv("SCHEDULE_CSV", "schedule.csv")

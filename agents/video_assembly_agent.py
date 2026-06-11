@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import subprocess
 from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, TextClip, ColorClip
 import whisper
 import numpy as np
@@ -38,12 +39,13 @@ class VideoAssemblyAgent:
             end = seg.get("end", 0)
             duration = end - start
 
+            font_path = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arial.ttf")
             try:
                 txt_clip = TextClip(
                     text=txt,
                     font_size=font_size,
                     color="white",
-                    font="Arial",
+                    font=font_path if os.path.exists(font_path) else "Arial",
                     stroke_color="black",
                     stroke_width=2,
                     method="caption",
@@ -105,9 +107,9 @@ class VideoAssemblyAgent:
             codec="libx264",
             audio_codec="aac",
             fps=24,
-            preset="fast",
-            bitrate="3000k",
-            threads=2,
+            preset="ultrafast",
+            bitrate="1000k",
+            threads=4,
             logger=None,
         )
 
