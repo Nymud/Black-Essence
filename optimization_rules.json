@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "last_updated": null,
+  "rules": [
+    {
+      "category": "figures",
+      "rule": "Use personal storytelling hooks that start with 'Imagine...' for figure profiles - this drove 40% higher retention",
+      "source_video": "The Life of Harriet Tubman",
+      "rule_type": "hook_style"
+    },
+    {
+      "category": "cultural",
+      "rule": "Include historical footage clips in the first 15 seconds for cultural topics to boost average view duration",
+      "source_video": "The Harlem Renaissance Explained",
+      "rule_type": "thumbnail_element"
+    },
+    {
+      "category": "inventions",
+      "rule": "Lead with a surprising statistic in the hook for invention topics - 'Did you know...' format outperformed other hooks by 2x",
+      "source_video": "Black Inventors Who Changed the World",
+      "rule_type": "hook_style"
+    },
+    {
+      "category": "general",
+      "rule": "Post at 10:00 AM or 6:00 PM for maximum initial view velocity within first hour",
+      "source_video": "aggregate analysis",
+      "rule_type": "posting_time"
+    }
+  ]
+}

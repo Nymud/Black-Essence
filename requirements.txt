@@ -1,0 +1,28 @@
+# Core
+python-dotenv==1.0.1
+apscheduler==3.10.4
+httpx==0.28.1
+openai==1.55.0
+
+# Voiceover
+edge-tts==6.1.3
+
+# Video processing
+moviepy==1.0.3
+openai-whisper==20240930
+Pillow==11.0.0
+
+# Analytics
+analytix==2.2.2
+google-api-python-client==2.149.0
+google-auth-oauthlib==1.2.1
+
+# Telegram bot
+python-telegram-bot==21.9
+
+# YouTube upload
+google-auth==2.36.0
+google-auth-httplib2==0.2.0
+
+# Image generation
+huggingface-hub==0.27.0
