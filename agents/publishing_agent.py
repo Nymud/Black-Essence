@@ -47,6 +47,18 @@ class PublishingAgent:
                     client_secret=client_cfg["client_secret"],
                     scopes=["https://www.googleapis.com/auth/youtube.upload"],
                 )
+        if raw.startswith("b64:"):
+            import base64, json, pickle
+            payload = json.loads(base64.b64decode(raw[3:]).decode())
+            from google.oauth2.credentials import Credentials
+            return Credentials(
+                token=payload.get("access_token") or payload.get("token", ""),
+                refresh_token=payload.get("refresh_token"),
+                token_uri=payload.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=payload.get("client_id"),
+                client_secret=payload.get("client_secret"),
+                scopes=["https://www.googleapis.com/auth/youtube.upload"],
+            )
         return None
 
     def publish_youtube_shorts(self, video_path: str, title: str, description: str, thumbnail_path: str = None) -> str:
