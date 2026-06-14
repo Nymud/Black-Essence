@@ -166,4 +166,4 @@ class TelegramApprovalBot:
         app.add_handler(MessageHandler(filters.COMMAND, handle))
 
         logger.info("Telegram bot polling started")
-        app.run_polling()
+        app.run_polling(stop_signals=[])
