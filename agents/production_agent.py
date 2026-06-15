@@ -93,5 +93,5 @@ class ProductionAgent:
             return ProductionResult(script, video_path, vertical_path, thumb_path, topic)
 
         except Exception as e:
-            error_msg = critical_failure_alert("ProductionAgent", e, self.telegram_bot)
+            error_msg = critical_failure_alert("ProductionAgent", e)
             raise RuntimeError(error_msg) from e

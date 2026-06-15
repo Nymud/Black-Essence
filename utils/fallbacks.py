@@ -29,16 +29,11 @@ class FallbackChain:
         raise RuntimeError(f"[{self.name}] All handlers failed. Last error: {last_error}")
 
 
-def critical_failure_alert(component: str, error: Exception, telegram_bot=None):
+def critical_failure_alert(component: str, error: Exception):
     details = (
         f"CRITICAL FAILURE - {component}\n"
         f"Error: {error}\n"
         f"Traceback:\n{''.join(traceback.format_tb(error.__traceback__))}"
     )
     logger.critical(details)
-    if telegram_bot:
-        try:
-            telegram_bot.send_alert(details)
-        except Exception as e:
-            logger.error("Failed to send alert via Telegram: %s", e)
     return details

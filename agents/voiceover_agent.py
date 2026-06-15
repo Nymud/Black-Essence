@@ -17,7 +17,16 @@ class VoiceoverAgent:
         self.elevenlabs_voice = Config.ELEVENLABS_VOICE_ID
 
     def _edge_tts_sync(self, text: str) -> str:
-        return asyncio.run(self._edge_tts_async(text))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is None:
+            return asyncio.run(self._edge_tts_async(text))
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, self._edge_tts_async(text))
+            return future.result()
 
     async def _edge_tts_async(self, text: str) -> str:
         out = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
