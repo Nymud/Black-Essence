@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+output/
+tmp/
+*.log
+.env
+.pytest_cache
+.vscode
+.idea

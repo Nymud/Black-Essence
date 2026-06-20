@@ -8,7 +8,7 @@ import re
 from PIL import Image, ImageFilter, ImageOps, ImageEnhance
 import numpy as np
 
-import whisper
+from faster_whisper import WhisperModel
 
 from utils.config import Config
 
@@ -25,13 +25,20 @@ class VideoAssemblyAgent:
 
     def _get_whisper(self):
         if self._whisper_model is None:
-            self._whisper_model = whisper.load_model(self.whisper_model_name)
+            self._whisper_model = WhisperModel(
+                self.whisper_model_name,
+                device="cpu",
+                compute_type="int8",
+            )
         return self._whisper_model
 
     def _transcribe_audio(self, audio_path: str) -> list[dict]:
         model = self._get_whisper()
-        result = model.transcribe(audio_path)
-        return result.get("segments", [])
+        segments, _ = model.transcribe(audio_path)
+        return [
+            {"start": s.start, "end": s.end, "text": s.text}
+            for s in segments
+        ]
 
     @staticmethod
     def _srt_time(seconds: float) -> str:
