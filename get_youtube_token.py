@@ -1,4 +1,4 @@
-import os, pickle, webbrowser, hashlib, base64, secrets, json, urllib.parse, sys, time
+import os, pickle, webbrowser, hashlib, base64, secrets, json, urllib.parse, sys
 import requests
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]

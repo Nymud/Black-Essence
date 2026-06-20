@@ -1,5 +1,3 @@
-import base64
-import json
 import logging
 import os
 import tempfile
@@ -23,8 +21,8 @@ class ThumbnailAgent:
 
         prompt = (
             f"Thumbnail for black history educational video about {topic}, "
-            f"bold colors, dramatic lighting, cinematic, text overlay space, "
-            f"high contrast, 16:9, professional youtube thumbnail style"
+            f"black ink hand-drawn sketch style, white background, line art, "
+            f"whiteboard illustration, educational, bold simple design, 16:9"
         )
 
         api_url = f"https://api-inference.huggingface.co/models/{self.hf_model}"
@@ -42,22 +40,30 @@ class ThumbnailAgent:
         return out_path
 
     def _generate_pil_fallback(self, topic: str) -> str:
-        img = Image.new("RGB", (1280, 720), color=(10, 10, 40))
+        img = Image.new("RGB", (1280, 720), color=(245, 245, 235))
         draw = ImageDraw.Draw(img)
 
+        font_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fonts", "PatrickHand-Regular.ttf")
         try:
-            font = ImageFont.truetype("arial.ttf", 48)
-            sub_font = ImageFont.truetype("arial.ttf", 28)
+            title_font = ImageFont.truetype(font_path, 64)
+            sub_font = ImageFont.truetype(font_path, 36)
+            channel_font = ImageFont.truetype(font_path, 28)
         except (OSError, IOError):
-            font = ImageFont.load_default()
-            sub_font = ImageFont.load_default()
+            try:
+                title_font = ImageFont.truetype("arial.ttf", 64)
+                sub_font = ImageFont.truetype("arial.ttf", 36)
+                channel_font = ImageFont.truetype("arial.ttf", 28)
+            except (OSError, IOError):
+                title_font = ImageFont.load_default()
+                sub_font = ImageFont.load_default()
+                channel_font = ImageFont.load_default()
 
         lines = []
         words = topic.split()
         current = ""
         for w in words:
             test = f"{current} {w}".strip()
-            if len(test) < 30:
+            if len(test) < 24:
                 current = test
             else:
                 lines.append(current)
@@ -67,24 +73,29 @@ class ThumbnailAgent:
 
         y_start = 200
         for i, line in enumerate(lines[:3]):
-            bbox = draw.textbbox((0, 0), line, font=font)
+            bbox = draw.textbbox((0, 0), line, font=title_font)
             tw = bbox[2] - bbox[0]
             draw.text(
-                ((1280 - tw) // 2, y_start + i * 60),
+                ((1280 - tw) // 2, y_start + i * 80),
                 line,
-                fill=(255, 215, 0),
-                font=font,
+                fill=(30, 30, 30),
+                font=title_font,
             )
 
         bottom_text = "BLACK ESSENCE"
-        bbox = draw.textbbox((0, 0), bottom_text, font=sub_font)
+        bbox = draw.textbbox((0, 0), bottom_text, font=channel_font)
         tw = bbox[2] - bbox[0]
         draw.text(
             ((1280 - tw) // 2, 620),
             bottom_text,
-            fill=(255, 255, 255),
-            font=sub_font,
+            fill=(80, 80, 80),
+            font=channel_font,
         )
+
+        frame_color = (50, 50, 50)
+        draw.rectangle([0, 0, 1279, 719], outline=frame_color, width=4)
+        draw.line([(160, 90), (1120, 90)], fill=frame_color, width=2)
+        draw.line([(160, 640), (1120, 640)], fill=frame_color, width=2)
 
         out = tempfile.NamedTemporaryFile(suffix=".png", prefix="thumb_fallback_", delete=False)
         out_path = out.name

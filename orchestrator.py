@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import threading
-from datetime import datetime, date
+from datetime import date
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -17,10 +17,16 @@ from agents.publishing_agent import PublishingAgent
 from agents.optimization_agent import OptimizationAgent
 from bot.telegram_bot import TelegramApprovalBot, ApprovalStatus
 
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL),
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(os.path.join(log_dir, "orchestrator.log"), encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger("Orchestrator")
 

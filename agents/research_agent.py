@@ -16,7 +16,7 @@ class ResearchAgent:
         self.openrouter_model = Config.OPENROUTER_MODEL
 
     def _duckduckgo_search(self, query: str) -> list[dict]:
-        from ddgs import DDGS
+        from duckduckgo_search import DDGS
         results = []
         ddgs = DDGS()
         for r in ddgs.text(query, max_results=10):

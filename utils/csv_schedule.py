@@ -1,6 +1,6 @@
 import csv
 import logging
-from datetime import datetime, date
+from datetime import date
 from typing import Optional
 
 logger = logging.getLogger(__name__)

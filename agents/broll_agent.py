@@ -1,7 +1,7 @@
 import logging
-import os
 import tempfile
 import httpx
+from urllib.parse import quote
 
 from utils.config import Config
 from utils.fallbacks import FallbackChain
@@ -19,7 +19,7 @@ class BrollAgent:
             raise RuntimeError("HF token not configured")
         from huggingface_hub import InferenceClient
         client = InferenceClient(token=self.hf_token)
-        prompt = f"cartoon illustration of {query}, animated storybook style, vibrant colors, educational, simple clean"
+        prompt = f"black ink hand-drawn sketch of {query}, white background, line art, simple clean illustration, educational, AfterSkool style"
         result = client.text_to_image(
             prompt,
             model="stabilityai/stable-diffusion-xl-base-1.0",
@@ -33,8 +33,8 @@ class BrollAgent:
         return out_path
 
     def _generate_image_pollinations(self, query: str) -> str:
-        prompt = f"cartoon illustration of {query}, educational, vibrant colors, simple clean style, digital art"
-        url = f"https://image.pollinations.ai/prompt/{httpx.utils.quote(prompt)}?width=1280&height=720&nofeed=true"
+        prompt = f"black ink hand-drawn sketch of {query}, white background, line art, simple clean illustration, educational"
+        url = f"https://image.pollinations.ai/prompt/{quote(prompt)}?width=1280&height=720&nofeed=true"
         safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in query)[:50]
         out = tempfile.NamedTemporaryFile(suffix=".png", prefix=f"{safe_name}_", delete=False)
         out_path = out.name

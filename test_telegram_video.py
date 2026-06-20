@@ -3,7 +3,6 @@ sys.path.insert(0, ".")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 from bot.telegram_bot import TelegramApprovalBot
-from telegram import InputMediaVideo, InputMediaPhoto
 
 topic = "The Life of Harriet Tubman"
 video_path = os.path.abspath(f"output/{topic.replace(' ', '_')}_horizontal.mp4")
