@@ -2,7 +2,10 @@ import sys, logging, os, time
 sys.path.insert(0, ".")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
-topic = "The Life of Harriet Tubman"
+from utils.csv_schedule import get_topic_for_slot
+from datetime import date
+_entry = get_topic_for_slot("schedule.csv", date.today(), "10:00")
+topic = _entry.topic if _entry else "Black History Spotlight"
 
 times = {}
 
@@ -41,7 +44,7 @@ times["broll"] = 0
 if scene_markers:
     markers = scene_markers
 else:
-    markers = ["Harriet Tubman", "underground railroad", "freedom"]
+    markers = []  # will be extracted from script
 print(f"Generating {len(markers)} scene images...")
 for marker in markers:
     try:

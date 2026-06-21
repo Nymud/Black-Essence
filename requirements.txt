@@ -5,9 +5,10 @@ openai>=1.55.0
 edge-tts>=6.1.0
 faster-whisper>=1.1.0
 Pillow>=11.0.0
-analytix>=5.0.0
 python-telegram-bot>=21.0
 google-api-python-client>=2.149.0
 google-auth-oauthlib>=1.2.0
 duckduckgo-search>=7.5.0
 setuptools<82
+flask>=3.0.0
+gunicorn>=23.0.0

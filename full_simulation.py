@@ -10,8 +10,12 @@ from agents.video_assembly_agent import VideoAssemblyAgent
 from agents.thumbnail_agent import ThumbnailAgent
 from agents.publishing_agent import PublishingAgent
 
-TOPIC = "The Life of Harriet Tubman"
-CATEGORY = "history"
+from utils.csv_schedule import get_topic_for_slot
+from datetime import date
+
+_entry = get_topic_for_slot("schedule.csv", date.today(), "10:00")
+TOPIC = _entry.topic if _entry else "Black History Spotlight"
+CATEGORY = _entry.category if _entry else "general"
 SAFE_TOPIC = "".join(c if c.isalnum() or c in " -_" else "_" for c in TOPIC)[:40]
 
 def main():
