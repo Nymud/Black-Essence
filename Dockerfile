@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt-lists/*
 
-COPY requirements-docker.txt requirements.txt
+COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt \
     && rm -rf /root/.cache/pip
 
