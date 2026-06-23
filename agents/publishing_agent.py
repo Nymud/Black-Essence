@@ -49,7 +49,7 @@ class PublishingAgent:
                 )
         if raw.startswith("b64:"):
             import base64, json, pickle
-            payload = json.loads(base64.b64decode(raw[3:]).decode())
+            payload = json.loads(base64.b64decode(raw[4:]).decode())
             from google.oauth2.credentials import Credentials
             return Credentials(
                 token=payload.get("access_token") or payload.get("token", ""),
